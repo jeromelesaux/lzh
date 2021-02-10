@@ -59,14 +59,14 @@ func (l *Lzh) writePtLen(n, nbit, iSpecial int) {
 	for n > 0 && l.ptLen[n-1] == 0 {
 		n--
 	}
-	l.putbits(nbit, uint(n))
+	l.putbits(nbit, uint16(n))
 	i = 0
 	for i < n {
 
 		k = int(l.ptLen[i])
 		i++
 		if k <= 6 {
-			l.putbits(3, uint(k))
+			l.putbits(3, uint16(k))
 		} else {
 			l.putbits(k-3, (1<<(k-3))-2)
 		}
@@ -74,7 +74,7 @@ func (l *Lzh) writePtLen(n, nbit, iSpecial int) {
 			for i < 6 && l.ptLen[i] == 0 {
 				i++
 			}
-			l.putbits(2, uint((i-3)&3))
+			l.putbits(2, uint16((i-3)&3))
 		}
 	}
 }
@@ -86,7 +86,7 @@ func (l *Lzh) writeCLen() {
 		n--
 	}
 
-	l.putbits(cbit, uint(n))
+	l.putbits(cbit, uint16(n))
 	for i < n {
 		k = int(l.cLen[i])
 		i++
@@ -98,31 +98,31 @@ func (l *Lzh) writeCLen() {
 			}
 			if count <= 2 {
 				for k = 0; k < count; k++ {
-					l.putbits(int(l.ptLen[0]), uint(l.ptCode[0]))
+					l.putbits(int(l.ptLen[0]), l.ptCode[0])
 				}
 			} else {
 				if count <= 18 {
-					l.putbits(int(l.ptLen[1]), uint(l.ptCode[1]))
-					l.putbits(4, uint(count-3))
+					l.putbits(int(l.ptLen[1]), l.ptCode[1])
+					l.putbits(4, uint16(count-3))
 				} else {
 					if count == 19 {
-						l.putbits(int(l.ptLen[0]), uint(l.ptCode[0]))
-						l.putbits(int(l.ptLen[1]), uint(l.ptCode[1]))
+						l.putbits(int(l.ptLen[0]), l.ptCode[0])
+						l.putbits(int(l.ptLen[1]), l.ptCode[1])
 						l.putbits(4, 15)
 					} else {
-						l.putbits(int(l.ptLen[2]), uint(l.ptCode[2]))
-						l.putbits(cbit, uint(count-20))
+						l.putbits(int(l.ptLen[2]), l.ptCode[2])
+						l.putbits(cbit, uint16(count)-20)
 					}
 				}
 			}
 		} else {
-			l.putbits(int(l.ptLen[k+2]), uint(l.ptCode[k+2]))
+			l.putbits(int(l.ptLen[k+2]), l.ptCode[k+2])
 		}
 	}
 }
 
 func (l *Lzh) encodeC(c int) {
-	l.putbits(int(l.cLen[c]), uint(l.cCode[c]))
+	l.putbits(int(l.cLen[c]), l.cCode[c])
 }
 
 func (l *Lzh) encodeP(p uint16) {
@@ -132,9 +132,9 @@ func (l *Lzh) encodeP(p uint16) {
 		q >>= 1
 		c++
 	}
-	l.putbits(int(l.ptLen[c]), uint(l.ptCode[c]))
+	l.putbits(int(l.ptLen[c]), uint16(l.ptCode[c]))
 	if c > 1 {
-		l.putbits(int(c-1), uint(p&(0xFFFF>>(17-c))))
+		l.putbits(int(c-1), uint16(p&(0xFFFF>>(17-c))))
 	}
 }
 
@@ -167,15 +167,15 @@ func (l *Lzh) hufDecodeStart() {
 }
 
 func (l *Lzh) sendBlock() {
-	var flags, root, pos, size uint
+	var flags, root, pos, size uint16
 	var k uint16
 	var i int
-	root = uint(l.makeTree(nc, &l.cFreq, &l.cLen, &l.cCode))
-	size = uint(l.cFreq[root])
+	root = uint16(l.makeTree(nc, &l.cFreq, &l.cLen, &l.cCode))
+	size = uint16(l.cFreq[root])
 	l.putbits(16, size)
 	if int(root) >= nc {
 		l.countTFreq()
-		root = uint(l.makeTree(nt, &l.tFreq, &l.ptLen, &l.ptCode))
+		root = uint16(l.makeTree(nt, &l.tFreq, &l.ptLen, &l.ptCode))
 		if int(root) >= nt {
 			l.writePtLen(nt, tbit, 3)
 		} else {
@@ -189,7 +189,7 @@ func (l *Lzh) sendBlock() {
 		l.putbits(cbit, 0)
 		l.putbits(cbit, root)
 	}
-	root = uint(l.makeTree(np, &l.pFreq, &l.ptLen, &l.ptCode))
+	root = uint16(l.makeTree(np, &l.pFreq, &l.ptLen, &l.ptCode))
 	if int(root) >= np {
 		l.writePtLen(np, pbit, -1)
 	} else {
@@ -199,12 +199,12 @@ func (l *Lzh) sendBlock() {
 	pos = 0
 	for i = 0; i < int(size); i++ {
 		if i%charBit == 0 {
-			flags = uint(l.buf[pos])
+			flags = uint16(l.buf[pos])
 			pos++
 		} else {
 			flags <<= 1
 		}
-		if flags&(uint(1)<<(charBit-1)) != 0 {
+		if flags&(uint16(1)<<(charBit-1)) != 0 {
 			l.encodeC(int(uint(l.buf[pos]) + (uint(1) << charBit)))
 			pos++
 			k = uint16(l.buf[pos]) << charBit
@@ -232,7 +232,7 @@ func (l *Lzh) sendBlock() {
 /***** decoding *****/
 func (l *Lzh) readPtLen(nn, nbit, iSpecial int) {
 	var i, c, n int
-	var mask uint
+	var mask uint32
 	n = int(l.getbits(nbit))
 	if n == 0 {
 		c = int(l.getbits(nbit))
@@ -240,15 +240,15 @@ func (l *Lzh) readPtLen(nn, nbit, iSpecial int) {
 			l.ptLen[i] = 0
 		}
 		for i = 0; i < 256; i++ {
-			l.ptTable[i] = byte(c)
+			l.ptTable[i] = uint16(c)
 		}
 	} else {
 		i = 0
 		for i < n {
 			c = int(l.bitbuf >> (bitbufsiz - 3))
 			if c == 7 {
-				mask = uint(1) << (bitbufsiz - 1 - 3)
-				for mask&l.bitbuf == 0 {
+				mask = uint32(1) << (bitbufsiz - 1 - 3)
+				for (mask & l.bitbuf) != 0 {
 					mask >>= 1
 					c++
 				}
@@ -258,29 +258,30 @@ func (l *Lzh) readPtLen(nn, nbit, iSpecial int) {
 			} else {
 				l.fillbuf(c - 3)
 			}
-			i++
+
 			l.ptLen[i] = byte(c)
+			i++
 			if i == iSpecial {
 				c = int(l.getbits(2))
 				c--
 				for c >= 0 {
 					c--
-					i++
 					l.ptLen[i] = 0
+					i++
 				}
 			}
 		}
 		for i < nn {
-			i++
 			l.ptLen[i] = 0
+			i++
 		}
-		l.makeTable(nn, l.ptLen, 8, l.ptTable)
+		l.makeTable(nn, &l.ptLen, 8, &l.ptTable)
 	}
 }
 
 func (l *Lzh) readCLen() {
 	var i, c, n int
-	var mask uint
+	var mask uint32
 
 	n = int(l.getbits(cbit))
 	if n == 0 {
@@ -289,16 +290,16 @@ func (l *Lzh) readCLen() {
 			l.cLen[i] = 0
 		}
 		for i = 0; i < 4096; i++ {
-			l.cTable[i] = byte(c)
+			l.cTable[i] = uint16(c)
 		}
 	} else {
 		i = 0
 		for i < n {
 			c = int(l.ptTable[l.bitbuf>>(bitbufsiz-8)])
 			if c >= nt {
-				mask = uint(1) << (bitbufsiz - 1 - 8)
+				mask = uint32(1) << (bitbufsiz - 1 - 8)
 				for {
-					if (l.bitbuf & mask) == 0 {
+					if (l.bitbuf & mask) != 0 {
 						c = int(l.right[c])
 					} else {
 						c = int(l.left[c])
@@ -322,24 +323,28 @@ func (l *Lzh) readCLen() {
 				}
 				c--
 				for c >= 0 {
-					i++
+
 					l.cLen[i] = 0
+					i++
+					c--
 				}
 			} else {
-				i++
+
 				l.cLen[i] = byte(c - 2)
+				i++
 			}
 		}
 		for i < nc {
-			i++
+
 			l.cLen[i] = 0
+			i++
 		}
-		l.makeTable(nc, l.cLen, 12, l.cTable)
+		l.makeTable(nc, &l.cLen, 12, &l.cTable)
 	}
 }
 
-func (l *Lzh) decodeC() uint {
-	var j, mask uint
+func (l *Lzh) decodeC() uint16 {
+	var j, mask uint16
 	if l.blocksize == 0 {
 		l.blocksize = l.getbits(16)
 		l.readPtLen(nt, tbit, 3)
@@ -347,14 +352,14 @@ func (l *Lzh) decodeC() uint {
 		l.readPtLen(np, pbit, -1)
 	}
 	l.blocksize--
-	j = uint(l.cTable[l.bitbuf>>(bitbufsiz-12)])
+	j = uint16(l.cTable[l.bitbuf>>(bitbufsiz-12)])
 	if int(j) >= nc {
-		mask = uint(1) << (bitbufsiz - 1 - 12)
+		mask = uint16(1) << (bitbufsiz - 1 - 12)
 		for {
-			if (l.bitbuf & mask) == 0 {
-				j = uint(l.right[j])
+			if (uint16(l.bitbuf) & mask) == 0 {
+				j = uint16(l.right[j])
 			} else {
-				j = uint(l.left[j])
+				j = uint16(l.left[j])
 			}
 			mask >>= 1
 			if int(j) < nc {
@@ -366,26 +371,24 @@ func (l *Lzh) decodeC() uint {
 	return j
 }
 
-func (l *Lzh) decodeP() uint {
-	var j, mask uint
-	j = uint(l.ptTable[l.bitbuf>>(bitbufsiz-8)])
+func (l *Lzh) decodeP() uint16 {
+	var j uint16
+	var mask uint32
+	j = uint16(l.ptTable[l.bitbuf>>(bitbufsiz-8)])
 	if int(j) >= np {
-		mask = uint(1) << (bitbufsiz - 1 - 8)
-		for {
-			if (l.bitbuf & mask) == 0 {
-				j = uint(l.right[j])
+		mask = uint32(1) << (bitbufsiz - 1 - 8)
+		for int(j) >= np {
+			if (l.bitbuf & mask) != 0 {
+				j = uint16(l.right[j])
 			} else {
-				j = uint(l.left[j])
+				j = uint16(l.left[j])
 			}
 			mask >>= 1
-			if int(j) < np {
-				break
-			}
 		}
 	}
 	l.fillbuf(int(l.ptLen[j]))
 	if j != 0 {
-		j = (uint(1) << (j - 1)) + l.getbits(int(j-1))
+		j = (uint16(1) << (j - 1)) + l.getbits(int(j-1))
 	}
 	return j
 }

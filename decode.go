@@ -19,12 +19,14 @@ func (l *Lzh) decodeStart() {
    'DICSIZ' or more.
    Call decode_start() once for each new file
    before calling this function. */
-func (l *Lzh) decode(count uint, buffer []byte) {
-	var i, r, c uint
+var decodeIndex uint32
+
+func (l *Lzh) decode(count uint16, buffer *[]byte) {
+	var r, c uint16
 	l.j--
 	for l.j >= 0 {
-		buffer[r] = buffer[i]
-		i = (i + 1) & uint(discsiz-1)
+		(*buffer)[r] = (*buffer)[decodeIndex]
+		decodeIndex = (decodeIndex + 1) & uint32(discsiz-1)
 		r++
 		if r == count {
 			return
@@ -34,19 +36,23 @@ func (l *Lzh) decode(count uint, buffer []byte) {
 
 	for {
 		c = l.decodeC()
-		if c <= ucharMax {
-			buffer[r] = byte(c)
+		if c <= uint16(ucharMax) {
+			(*buffer)[r] = byte(c)
 			r++
 			if r == count {
 				return
 			}
 		} else {
-			l.j = int(c - (ucharMax + 1 - threshold))
-			i = (r - l.decodeP() - 1) & uint(discsiz-1)
+			l.j = int(c - uint16(ucharMax+1-threshold))
+			decodeIndex = uint32(r-l.decodeP()-1) & uint32(discsiz-1)
 			l.j--
 			for l.j >= 0 {
-				buffer[r] = buffer[i]
-				i = (i + 1) & uint(discsiz-1)
+				(*buffer)[r] = (*buffer)[decodeIndex]
+				decodeIndex = (decodeIndex + 1) & uint32(discsiz-1)
+				r++
+				if r == count {
+					return
+				}
 				l.j--
 			}
 		}

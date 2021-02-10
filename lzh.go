@@ -10,9 +10,9 @@ import (
 )
 
 var (
-	ulongMax uint = (math.MaxInt64*2 + 1)
-	fnameMax      = 255 - 25
-	initCrc  uint = 0
+	ulongMax uint   = (math.MaxInt64*2 + 1)
+	fnameMax        = 255 - 25
+	initCrc  uint16 = 0
 )
 
 type Lzh struct {
@@ -32,7 +32,7 @@ type Lzh struct {
 	bufsiz     uint
 	outputPos  uint
 	outputMask uint
-	blocksize  uint
+	blocksize  uint16
 
 	buf        []byte
 	ptLen      []byte
@@ -42,16 +42,16 @@ type Lzh struct {
 	cFreq      []uint16
 	pFreq      []uint16
 	tFreq      []uint16
-	ptTable    []byte
-	cTable     []byte
+	ptTable    []uint16
+	cTable     []uint16
 	headersize byte
 	headersum  byte
 	header     []byte
-	fileCrc    uint
+	fileCrc    uint16
 	namelen    int
 	filename   []byte
 
-	subbitbuf uint
+	subbitbuf uint16
 	bitcount  int
 	origsize  int
 	compsize  int
@@ -62,8 +62,8 @@ type Lzh struct {
 	arcfile    []byte
 	arcfilePtr int
 	unpackable bool
-	bitbuf     uint
-	crc        uint
+	bitbuf     uint32
+	crc        uint16
 	crctable   []uint
 	buffer     []byte
 
@@ -88,8 +88,8 @@ func NewLzh() *Lzh {
 		cFreq:    make([]uint16, 2*nc-1),
 		pFreq:    make([]uint16, 2*np-1),
 		tFreq:    make([]uint16, 2*nt-1),
-		ptTable:  make([]byte, 256),
-		cTable:   make([]byte, 4096),
+		ptTable:  make([]uint16, 256),
+		cTable:   make([]uint16, 4096),
 		crctable: make([]uint, ucharMax+1),
 		heap:     make([]int16, nc+1),
 		lenCnt:   make([]uint16, 17),
@@ -123,14 +123,25 @@ func percflagNotand(v int16) int16 { // (short)v & ~PERC_FLAG
 	return int16(i)
 }
 
-func (l *Lzh) Decode(f io.Reader) (err error) {
+func (l *Lzh) Decode(f io.Reader, createFile bool) (err error) {
 	l.arcfile, err = ioutil.ReadAll(f)
 	if err != nil {
 		return err
 	}
 	l.makeCrctable()
-	l.extract(true)
+	l.readHeader()
+	l.buffer = make([]byte, l.origsize)
+	if err := l.extract(true); err != nil {
+		return err
+	}
+	if createFile {
+		return ioutil.WriteFile(string(l.filename), l.outfile, 0644)
+	}
 	return nil
+}
+
+func (l *Lzh) DecodedBuffer() []byte {
+	return l.outfile
 }
 
 func (l *Lzh) Encode(f io.Writer, inputFilename string) (err error) {
@@ -139,10 +150,6 @@ func (l *Lzh) Encode(f io.Writer, inputFilename string) (err error) {
 	l.filename = []byte(inputFilename)
 	copy(l.header[20:], l.filename[:])
 	l.add(true)
-	/*
-		if err = l.copy(); err != nil {
-			return err
-		}*/
 	_, err = f.Write(l.outfile)
 	return err
 }
@@ -196,7 +203,7 @@ func (l *Lzh) readHeader() error {
 	}
 	l.compsize = int(l.getFromHeader(5, 4))
 	l.origsize = int(l.getFromHeader(9, 4))
-	l.fileCrc = l.getFromHeader(uint(l.headersize)-5, 2)
+	l.fileCrc = l.getFromHeader(int(l.headersize)-5, 2)
 	l.namelen = int(l.header[19])
 	l.filename = append(l.filename, l.header[20:]...)
 
@@ -211,11 +218,11 @@ func (l *Lzh) calcHeadersum() uint {
 	return s & 0xff
 }
 
-func (l *Lzh) getFromHeader(i, n uint) uint {
-	var s uint
+func (l *Lzh) getFromHeader(i, n int) uint16 {
+	var s uint16
 	n--
 	for n >= 0 {
-		s = (s << 8) + uint(l.header[i+n]) /* little endian */
+		s = (s << 8) + uint16(l.header[i+n]) /* little endian */
 		n--
 	}
 	return s
@@ -223,31 +230,18 @@ func (l *Lzh) getFromHeader(i, n uint) uint {
 
 func (l *Lzh) extract(toFile bool) (err error) {
 	var method int
-	var n uint
-	var extHeadersize uint
-	/*	if to_file {
-			for {
-				l.outfile, err = os.Create(string(l.filename))
-				if err != nil {
-					fmt.Fprintf(os.Stderr, "Can't open %s\nNew filename:", l.filename)
-					if l.get_line(l.filename, fname_max) == 0 {
-						fmt.Fprintf(os.Stderr, "Not extracted\n")
-					}
-					return err
-				}
-				fmt.Fprintf(os.Stdout, "Extracting %s ", l.filename)
-			}
-		} else {
-			fmt.Fprintf(os.Stdout, "===== %s =====\n", l.filename)
-		}*/
+	var n uint16
+	var extHeadersize uint16
+
+	fmt.Printf("Extracting %s ", l.filename)
 	l.crc = initCrc
 	method = int(l.header[3])
 	l.header[3] = byte(' ')
-	if method != 45 || string(l.header[0:5]) != "-lh-" {
+	if method != 45 && string(l.header[0:5]) != "-lh -" {
 		fmt.Fprintf(os.Stderr, "Unknown method: %d\n", method)
 		return errors.New("Unknown method")
 	}
-	extHeadersize = l.getFromHeader(uint(l.headersize)-2, 2)
+	extHeadersize = l.getFromHeader(int(l.headersize)-2, 2)
 	for extHeadersize != 0 {
 		fmt.Fprintf(os.Stdout, "There's an extended header of size %d.\n",
 			extHeadersize)
@@ -255,27 +249,29 @@ func (l *Lzh) extract(toFile bool) (err error) {
 		if len(l.arcfile[l.arcfilePtr:]) < int(extHeadersize)-2 {
 			return errors.New("Can't read")
 		}
-		extHeadersize = uint(l.arcfile[l.arcfilePtr])
+		extHeadersize = uint16(l.arcfile[l.arcfilePtr])
 		l.arcfilePtr++
-		extHeadersize += uint(l.arcfile[l.arcfilePtr] << 8)
+		extHeadersize += uint16(l.arcfile[l.arcfilePtr] << 8)
+		l.arcfilePtr++
 	}
 	l.crc = initCrc
 	if method != 0 {
 		l.decodeStart()
 	}
 	for l.origsize != 0 {
-		n = uint(discsiz)
+		n = uint16(l.origsize)
 		if l.origsize > int(discsiz) {
-			n = uint(l.origsize)
+			n = uint16(discsiz)
 		}
 		if method != '0' {
-			l.decode(n, l.buffer)
+			l.decode(n, &l.buffer)
 		} else {
 			l.buffer = append(l.buffer, l.arcfile[l.arcfilePtr:n]...)
 		}
-		l.fwriteCrc(&l.buffer, 0, int(n), &l.outfile)
+		l.fwriteCrc(&l.buffer, len(l.outfile), 0, int(n), &l.outfile)
 		fmt.Fprintf(os.Stdout, ".")
 		l.origsize -= int(n)
+
 	}
 	if l.crc^initCrc != l.fileCrc {
 		return errors.New("CRC error")
@@ -323,7 +319,7 @@ func (l *Lzh) writeHeader() {
 	}
 	l.outfile[int(l.outputPos)] = byte(l.calcHeadersum())
 	l.outputPos++
-	l.fwriteCrc(&l.header, int(l.outputPos), int(l.headersize), &l.outfile) /* CRC not used */
+	l.fwriteCrc(&l.header, int(l.outputPos), 0, int(l.headersize), &l.outfile) /* CRC not used */
 }
 
 func (l *Lzh) copy() error {
@@ -401,7 +397,7 @@ func (l *Lzh) store() {
 	l.origsize = 0
 	l.crc = initCrc
 	copy(l.infile[:], l.buffer[discsiz:])
-	l.fwriteCrc(&l.buffer, 0, int(n), &l.outfile)
+	l.fwriteCrc(&l.buffer, len(l.outfile), 0, int(n), &l.outfile)
 	l.origsize += int(n)
 	l.compsize = l.origsize
 }

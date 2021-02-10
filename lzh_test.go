@@ -2,15 +2,25 @@ package lzh
 
 import (
 	"fmt"
+	"io/ioutil"
 	"os"
 	"testing"
 )
 
 func TestCompress(t *testing.T) {
+	b, _ := ioutil.ReadFile("compr_origin.txt")
+	ioutil.WriteFile("compr.txt", b, 0644)
 	l := NewLzh()
 	f, _ := os.Create("archive.lha")
 	l.Encode(f, "compr.txt")
 	defer f.Close()
+}
+
+func TestDecode(t *testing.T) {
+	l := NewLzh()
+	f, _ := os.Open("archive.lha")
+	defer f.Close()
+	l.Decode(f)
 }
 
 func TestBin(t *testing.T) {

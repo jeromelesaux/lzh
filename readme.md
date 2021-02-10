@@ -1,1 +1,3 @@
-LZH go implementation (WIP) encode ok, testing decode.
+LZH go implementation (WIP) : 
+. encode ok
+. decode ok 

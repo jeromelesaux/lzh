@@ -2,11 +2,11 @@ package lzh
 
 var (
 	charBit        = 8
-	bitbufsiz      = charBit * 2
+	bitbufsiz      = charBit * 4
 	crcpoly   uint = 0xA001
 )
 
-func (l *Lzh) putbits(n int, x uint) error {
+func (l *Lzh) putbits(n int, x uint16) error {
 	if n < l.bitcount {
 		l.bitcount -= n
 		l.subbitbuf |= x << l.bitcount
@@ -45,15 +45,12 @@ func (l *Lzh) initPutbits() {
 
 func (l *Lzh) fillbuf(n int) error { /* Shift bitbuf n bits left, read n bits */
 	l.bitbuf <<= n
-	for {
-		if n <= l.bitcount {
-			break
-		}
+	for n > l.bitcount {
 		n -= l.bitcount
-		l.bitbuf |= l.subbitbuf << n
+		l.bitbuf |= uint32(l.subbitbuf) << n
 		if l.compsize != 0 {
 			l.compsize--
-			l.subbitbuf = uint(l.arcfile[l.arcfilePtr])
+			l.subbitbuf = uint16(l.arcfile[l.arcfilePtr])
 			l.arcfilePtr++
 		} else {
 			l.subbitbuf = 0
@@ -61,7 +58,7 @@ func (l *Lzh) fillbuf(n int) error { /* Shift bitbuf n bits left, read n bits */
 		l.bitcount = charBit
 	}
 	l.bitcount -= n
-	l.bitcount |= int(l.subbitbuf) >> l.bitcount
+	l.bitbuf |= uint32(l.subbitbuf >> l.bitcount)
 	return nil
 }
 
@@ -74,8 +71,8 @@ func (l *Lzh) initGetbits() {
 
 }
 
-func (l *Lzh) getbits(n int) uint {
-	var x uint
+func (l *Lzh) getbits(n int) uint16 {
+	var x uint16
 	if n == 0 {
 		return 0
 	}
@@ -85,7 +82,7 @@ func (l *Lzh) getbits(n int) uint {
 	   Thanks: CheMaRy.
 	*/
 
-	x = l.bitbuf >> (bitbufsiz - n)
+	x = uint16(l.bitbuf >> (bitbufsiz - n))
 	l.fillbuf(n)
 	return x
 }
@@ -120,7 +117,7 @@ func (l *Lzh) freadCrc(dst *[]byte, dstart, sstart, length int, src *[]byte) (er
 }
 
 func (l *Lzh) updateCrc(v byte) {
-	l.crc = uint(l.crctable[(l.crc^(uint(v)))&0xFF]) ^ (l.crc >> uint(charBit))
+	l.crc = uint16(l.crctable[(l.crc^(uint16(v)))&0xFF]) ^ (l.crc >> uint(charBit))
 }
 
 func (l *Lzh) makeCrctable() {
@@ -138,16 +135,17 @@ func (l *Lzh) makeCrctable() {
 	}
 }
 
-func (l *Lzh) fwriteCrc(p *[]byte, fIndex, n int, f *[]byte) {
+func (l *Lzh) fwriteCrc(p *[]byte, fIndex, pIndex, n int, f *[]byte) {
 	for i := 0; i < n; i++ {
 		if len(*f) > fIndex+i {
-			(*f)[fIndex+i] = (*p)[i]
+			(*f)[fIndex+i] = (*p)[pIndex+i]
 		} else {
-			(*f) = append((*f), (*p)[i])
+			(*f) = append((*f), (*p)[pIndex+i])
 		}
 	}
 	n--
-	i := 0
+	i := pIndex
+
 	for n >= 0 {
 		l.updateCrc((*p)[i])
 		i++
