@@ -20,7 +20,7 @@ func TestDecode(t *testing.T) {
 	l := NewLzh()
 	f, _ := os.Open("archive.lha")
 	defer f.Close()
-	l.Decode(f)
+	l.Decode(f, false)
 }
 
 func TestBin(t *testing.T) {
