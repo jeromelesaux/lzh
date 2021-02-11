@@ -242,17 +242,10 @@ func (l *Lzh) extract(toFile bool) (err error) {
 		return errors.New("Unknown method")
 	}
 	extHeadersize = l.getFromHeader(int(l.headersize)-2, 2)
-	for extHeadersize != 0 {
+	if extHeadersize != 0 {
 		fmt.Fprintf(os.Stdout, "There's an extended header of size %d.\n",
 			extHeadersize)
-		l.compsize -= int(extHeadersize)
-		if len(l.arcfile[l.arcfilePtr:]) < int(extHeadersize)-2 {
-			return errors.New("Can't read")
-		}
-		extHeadersize = uint16(l.arcfile[l.arcfilePtr])
-		l.arcfilePtr++
-		extHeadersize += uint16(l.arcfile[l.arcfilePtr] << 8)
-		l.arcfilePtr++
+		l.fileCrc = extHeadersize
 	}
 	l.crc = initCrc
 	if method != 0 {
