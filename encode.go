@@ -39,9 +39,15 @@ func (l *Lzh) encode() error {
 			l.matchlen = l.remainder
 		}
 		if l.matchlen > lastmatchlen || lastmatchlen < int(threshold) {
-			l.output(uint(l.text[l.pos-1]), 0)
+			err := l.output(uint(l.text[l.pos-1]), 0)
+			if err != nil {
+				return err
+			}
 		} else {
-			l.output(uint(lastmatchlen)+(ucharMax+1-threshold), uint(l.pos-lastmatchpos-2)&uint(discsiz-1))
+			err := l.output(uint(lastmatchlen)+(ucharMax+1-threshold), uint(l.pos-lastmatchpos-2)&uint(discsiz-1))
+			if err != nil {
+				return err
+			}
 			lastmatchlen--
 			for lastmatchlen > 0 {
 				l.getNextMatch()
@@ -52,8 +58,7 @@ func (l *Lzh) encode() error {
 			}
 		}
 	}
-	l.hufEncodeEnd()
-	return nil
+	return l.hufEncodeEnd()
 }
 
 func (l *Lzh) allocateMemory() {

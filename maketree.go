@@ -58,8 +58,7 @@ func (l *Lzh) makeLen(root int, codeparm *[]uint16) {
 
 func (l *Lzh) downheap(i int) { /* priority queue; send i-th entry down heap */
 	var j int
-	var k int16
-	k = l.heap[i]
+	k := l.heap[i]
 	j = 2 * i
 	for j <= l.heapsize {
 		if j < l.heapsize && l.freq[l.heap[j]] > l.freq[l.heap[j+1]] {

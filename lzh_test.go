@@ -9,18 +9,27 @@ import (
 
 func TestCompress(t *testing.T) {
 	b, _ := ioutil.ReadFile("compr_origin.txt")
-	ioutil.WriteFile("compr.txt", b, 0644)
+	err := ioutil.WriteFile("compr.txt", b, 0644)
 	l := NewLzh()
+	if err != nil {
+		t.Fatal(err)
+	}
 	f, _ := os.Create("archive.lha")
-	l.Encode(f, "compr.txt")
+	err = l.Encode(f, "compr.txt")
 	defer f.Close()
+	if err != nil {
+		t.Fatal(err)
+	}
 }
 
 func TestDecode(t *testing.T) {
 	l := NewLzh()
 	f, _ := os.Open("archive.lha")
 	defer f.Close()
-	l.Decode(f, false)
+	err := l.Decode(f, false)
+	if err != nil {
+		t.Fatal(err)
+	}
 }
 
 func TestBin(t *testing.T) {
@@ -37,7 +46,6 @@ func TestBin(t *testing.T) {
 	var v int16 = -16534
 	ov := percflagAnd(v)
 	fmt.Printf("%d:%b\n", ov, ov)
-	return
 }
 
 /*

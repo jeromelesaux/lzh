@@ -111,16 +111,12 @@ func percflagOr(v int16) int16 { // (short)v | PERC_FLAG
 }
 
 func percflagAnd(v int16) int16 { // (short)v & PERC_FLAG
-	var i int
-	i = int(v) & 0x8000
 	//i |= 0xFFFF8000
-	return int16(i) // a tester -16534 doit retourner 0
+	return int16(int(v) & 0x8000) // a tester -16534 doit retourner 0
 }
 
 func percflagNotand(v int16) int16 { // (short)v & ~PERC_FLAG
-	var i int
-	i = int(v) & ^0x8000
-	return int16(i)
+	return int16(int(v) & ^0x8000)
 }
 
 func (l *Lzh) Decode(f io.Reader, createFile bool) (err error) {
@@ -129,7 +125,10 @@ func (l *Lzh) Decode(f io.Reader, createFile bool) (err error) {
 		return err
 	}
 	l.makeCrctable()
-	l.readHeader()
+	err = l.readHeader()
+	if err != nil {
+		return err
+	}
 	l.buffer = make([]byte, l.origsize)
 	if err := l.extract(true); err != nil {
 		return err
@@ -149,7 +148,10 @@ func (l *Lzh) Encode(f io.Writer, inputFilename string) (err error) {
 	l.makeCrctable()
 	l.filename = []byte(inputFilename)
 	copy(l.header[20:], l.filename[:])
-	l.add(true)
+	err = l.add(true)
+	if err != nil {
+		return err
+	}
 	_, err = f.Write(l.outfile)
 	return err
 }
@@ -249,7 +251,10 @@ func (l *Lzh) extract(toFile bool) (err error) {
 	}
 	l.crc = initCrc
 	if method != 0 {
-		l.decodeStart()
+		err := l.decodeStart()
+		if err != nil {
+			return err
+		}
 	}
 	for l.origsize != 0 {
 		n = uint16(l.origsize)
@@ -257,7 +262,10 @@ func (l *Lzh) extract(toFile bool) (err error) {
 			n = uint16(discsiz)
 		}
 		if method != '0' {
-			l.decode(n, &l.buffer)
+			err := l.decode(n, &l.buffer)
+			if err != nil {
+				return err
+			}
 		} else {
 			l.buffer = append(l.buffer, l.arcfile[l.arcfilePtr:n]...)
 		}
@@ -366,7 +374,10 @@ func (l *Lzh) add(replaceFlag bool) (err error) {
 	l.compsize = 0
 	l.unpackable = false
 	l.crc = initCrc
-	l.encode()
+	err = l.encode()
+	if err != nil {
+		return err
+	}
 	if l.unpackable {
 		l.header[3] = '0' /* store */
 		l.store()

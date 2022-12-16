@@ -62,19 +62,19 @@ func (l *Lzh) fillbuf(n int) error { /* Shift bitbuf n bits left, read n bits */
 	return nil
 }
 
-func (l *Lzh) initGetbits() {
+func (l *Lzh) initGetbits() error {
 
 	l.bitbuf = 0
 	l.subbitbuf = 0
 	l.bitcount = 0
-	l.fillbuf(bitbufsiz)
+	return l.fillbuf(bitbufsiz)
 
 }
 
-func (l *Lzh) getbits(n int) uint16 {
+func (l *Lzh) getbits(n int) (uint16, error) {
 	var x uint16
 	if n == 0 {
-		return 0
+		return 0, nil
 	}
 	/* The above line added 2003-03-02.
 	   unsigned bitbuf used to be 16 bits, but now it's 32 bits,
@@ -83,8 +83,7 @@ func (l *Lzh) getbits(n int) uint16 {
 	*/
 
 	x = uint16(l.bitbuf >> (bitbufsiz - n))
-	l.fillbuf(n)
-	return x
+	return x, l.fillbuf(n)
 }
 
 func (l *Lzh) freadCrc(dst *[]byte, dstart, sstart, length int, src *[]byte) (error, int) {
@@ -151,5 +150,4 @@ func (l *Lzh) fwriteCrc(p *[]byte, fIndex, pIndex, n int, f *[]byte) {
 		i++
 		n--
 	}
-	return
 }

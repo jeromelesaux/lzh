@@ -7,9 +7,13 @@ var (
 	ucharMax  uint = (0x7F*2 + 1)
 )
 
-func (l *Lzh) decodeStart() {
-	l.hufDecodeStart()
+func (l *Lzh) decodeStart() error {
+	err := l.hufDecodeStart()
+	if err != nil {
+		return err
+	}
 	l.j = 0
+	return nil
 }
 
 /* The calling function must keep the number of
@@ -21,7 +25,7 @@ func (l *Lzh) decodeStart() {
    before calling this function. */
 var decodeIndex uint32
 
-func (l *Lzh) decode(count uint16, buffer *[]byte) {
+func (l *Lzh) decode(count uint16, buffer *[]byte) error {
 	var r, c uint16
 	l.j--
 	for l.j >= 0 {
@@ -29,29 +33,37 @@ func (l *Lzh) decode(count uint16, buffer *[]byte) {
 		decodeIndex = (decodeIndex + 1) & uint32(discsiz-1)
 		r++
 		if r == count {
-			return
+			return nil
 		}
 		l.j--
 	}
 
 	for {
-		c = l.decodeC()
+		var err error
+		c, err = l.decodeC()
+		if err != nil {
+			return err
+		}
 		if c <= uint16(ucharMax) {
 			(*buffer)[r] = byte(c)
 			r++
 			if r == count {
-				return
+				return nil
 			}
 		} else {
 			l.j = int(c - uint16(ucharMax+1-threshold))
-			decodeIndex = uint32(r-l.decodeP()-1) & uint32(discsiz-1)
+			v, err := l.decodeP()
+			if err != nil {
+				return err
+			}
+			decodeIndex = uint32(r-v-1) & uint32(discsiz-1)
 			l.j--
 			for l.j >= 0 {
 				(*buffer)[r] = (*buffer)[decodeIndex]
 				decodeIndex = (decodeIndex + 1) & uint32(discsiz-1)
 				r++
 				if r == count {
-					return
+					return nil
 				}
 				l.j--
 			}

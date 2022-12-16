@@ -54,39 +54,55 @@ func (l *Lzh) countTFreq() {
 	}
 }
 
-func (l *Lzh) writePtLen(n, nbit, iSpecial int) {
+func (l *Lzh) writePtLen(n, nbit, iSpecial int) error {
 	var i, k int
 	for n > 0 && l.ptLen[n-1] == 0 {
 		n--
 	}
-	l.putbits(nbit, uint16(n))
+	err := l.putbits(nbit, uint16(n))
+	if err != nil {
+		return err
+	}
 	i = 0
 	for i < n {
 
 		k = int(l.ptLen[i])
 		i++
 		if k <= 6 {
-			l.putbits(3, uint16(k))
+			err := l.putbits(3, uint16(k))
+			if err != nil {
+				return err
+			}
 		} else {
-			l.putbits(k-3, (1<<(k-3))-2)
+			err := l.putbits(k-3, (1<<(k-3))-2)
+			if err != nil {
+				return err
+			}
 		}
 		if i == iSpecial {
 			for i < 6 && l.ptLen[i] == 0 {
 				i++
 			}
-			l.putbits(2, uint16((i-3)&3))
+			err := l.putbits(2, uint16((i-3)&3))
+			if err != nil {
+				return err
+			}
 		}
 	}
+	return nil
 }
 
-func (l *Lzh) writeCLen() {
+func (l *Lzh) writeCLen() error {
 	var i, k, n, count int
 	n = nc
 	for n > 0 && l.cLen[n-1] == 0 {
 		n--
 	}
 
-	l.putbits(cbit, uint16(n))
+	err := l.putbits(cbit, uint16(n))
+	if err != nil {
+		return err
+	}
 	for i < n {
 		k = int(l.cLen[i])
 		i++
@@ -98,44 +114,79 @@ func (l *Lzh) writeCLen() {
 			}
 			if count <= 2 {
 				for k = 0; k < count; k++ {
-					l.putbits(int(l.ptLen[0]), l.ptCode[0])
+					err = l.putbits(int(l.ptLen[0]), l.ptCode[0])
+					if err != nil {
+						return err
+					}
 				}
 			} else {
 				if count <= 18 {
-					l.putbits(int(l.ptLen[1]), l.ptCode[1])
-					l.putbits(4, uint16(count-3))
+					err := l.putbits(int(l.ptLen[1]), l.ptCode[1])
+					if err != nil {
+						return err
+					}
+					err = l.putbits(4, uint16(count-3))
+					if err != nil {
+						return err
+					}
 				} else {
 					if count == 19 {
-						l.putbits(int(l.ptLen[0]), l.ptCode[0])
-						l.putbits(int(l.ptLen[1]), l.ptCode[1])
-						l.putbits(4, 15)
+						err := l.putbits(int(l.ptLen[0]), l.ptCode[0])
+						if err != nil {
+							return err
+						}
+						err = l.putbits(int(l.ptLen[1]), l.ptCode[1])
+						if err != nil {
+							return err
+						}
+						err = l.putbits(4, 15)
+						if err != nil {
+							return err
+						}
 					} else {
-						l.putbits(int(l.ptLen[2]), l.ptCode[2])
-						l.putbits(cbit, uint16(count)-20)
+						err := l.putbits(int(l.ptLen[2]), l.ptCode[2])
+						if err != nil {
+							return err
+						}
+						err = l.putbits(cbit, uint16(count)-20)
+						if err != nil {
+							return err
+						}
 					}
 				}
 			}
 		} else {
-			l.putbits(int(l.ptLen[k+2]), l.ptCode[k+2])
+			err := l.putbits(int(l.ptLen[k+2]), l.ptCode[k+2])
+			if err != nil {
+				return err
+			}
 		}
 	}
+	return nil
 }
 
-func (l *Lzh) encodeC(c int) {
-	l.putbits(int(l.cLen[c]), l.cCode[c])
+func (l *Lzh) encodeC(c int) error {
+	return l.putbits(int(l.cLen[c]), l.cCode[c])
 }
 
-func (l *Lzh) encodeP(p uint16) {
+func (l *Lzh) encodeP(p uint16) error {
 	var c, q uint16
 	q = p
 	for q != 0 {
 		q >>= 1
 		c++
 	}
-	l.putbits(int(l.ptLen[c]), uint16(l.ptCode[c]))
-	if c > 1 {
-		l.putbits(int(c-1), uint16(p&(0xFFFF>>(17-c))))
+	err := l.putbits(int(l.ptLen[c]), uint16(l.ptCode[c]))
+	if err != nil {
+		return err
 	}
+	if c > 1 {
+		err := l.putbits(int(c-1), uint16(p&(0xFFFF>>(17-c))))
+		if err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 func (l *Lzh) hufEncodeStart() {
@@ -154,47 +205,94 @@ func (l *Lzh) hufEncodeStart() {
 	l.initPutbits()
 }
 
-func (l *Lzh) hufEncodeEnd() {
+func (l *Lzh) hufEncodeEnd() error {
 	if !l.unpackable {
-		l.sendBlock()
-		l.putbits(charBit-1, 0) /* flush remaining bits */
+		err := l.sendBlock()
+		if err != nil {
+			return err
+		}
+		err = l.putbits(charBit-1, 0) /* flush remaining bits */
+		if err != nil {
+			return err
+		}
 	}
+	return nil
 }
 
-func (l *Lzh) hufDecodeStart() {
-	l.initGetbits()
+func (l *Lzh) hufDecodeStart() error {
+	err := l.initGetbits()
+	if err != nil {
+		return err
+	}
 	l.blocksize = 0
+	return nil
 }
 
-func (l *Lzh) sendBlock() {
+func (l *Lzh) sendBlock() error {
 	var flags, root, pos, size uint16
 	var k uint16
 	var i int
 	root = uint16(l.makeTree(nc, &l.cFreq, &l.cLen, &l.cCode))
 	size = uint16(l.cFreq[root])
-	l.putbits(16, size)
+	err := l.putbits(16, size)
+	if err != nil {
+		return err
+	}
 	if int(root) >= nc {
 		l.countTFreq()
 		root = uint16(l.makeTree(nt, &l.tFreq, &l.ptLen, &l.ptCode))
 		if int(root) >= nt {
-			l.writePtLen(nt, tbit, 3)
+			err := l.writePtLen(nt, tbit, 3)
+			if err != nil {
+				return err
+			}
 		} else {
-			l.putbits(tbit, 0)
-			l.putbits(tbit, root)
+			err := l.putbits(tbit, 0)
+			if err != nil {
+				return err
+			}
+			err = l.putbits(tbit, root)
+			if err != nil {
+				return err
+			}
 		}
-		l.writeCLen()
+		err := l.writeCLen()
+		if err != nil {
+			return err
+		}
 	} else {
-		l.putbits(tbit, 0)
-		l.putbits(tbit, 0)
-		l.putbits(cbit, 0)
-		l.putbits(cbit, root)
+		err := l.putbits(tbit, 0)
+		if err != nil {
+			return err
+		}
+		err = l.putbits(tbit, 0)
+		if err != nil {
+			return err
+		}
+		err = l.putbits(cbit, 0)
+		if err != nil {
+			return err
+		}
+		err = l.putbits(cbit, root)
+		if err != nil {
+			return err
+		}
 	}
 	root = uint16(l.makeTree(np, &l.pFreq, &l.ptLen, &l.ptCode))
 	if int(root) >= np {
-		l.writePtLen(np, pbit, -1)
+		err := l.writePtLen(np, pbit, -1)
+		if err != nil {
+			return err
+		}
 	} else {
-		l.putbits(pbit, 0)
-		l.putbits(pbit, root)
+		err := l.putbits(pbit, 0)
+		if err != nil {
+			return err
+		}
+		err = l.putbits(pbit, root)
+		if err != nil {
+			return err
+		}
 	}
 	pos = 0
 	for i = 0; i < int(size); i++ {
@@ -205,20 +303,29 @@ func (l *Lzh) sendBlock() {
 			flags <<= 1
 		}
 		if flags&(uint16(1)<<(charBit-1)) != 0 {
-			l.encodeC(int(uint(l.buf[pos]) + (uint(1) << charBit)))
+			err := l.encodeC(int(uint(l.buf[pos]) + (uint(1) << charBit)))
+			if err != nil {
+				return err
+			}
 			pos++
 			k = uint16(l.buf[pos]) << charBit
 			pos++
 			k += uint16(l.buf[pos])
 			pos++
-			l.encodeP(k)
+			err = l.encodeP(k)
+			if err != nil {
+				return err
+			}
 		} else {
 
-			l.encodeC(int(l.buf[pos]))
+			err := l.encodeC(int(l.buf[pos]))
+			if err != nil {
+				return err
+			}
 			pos++
 		}
 		if l.unpackable {
-			return
+			return nil
 		}
 	}
 	for i = 0; i < nc; i++ {
@@ -227,15 +334,24 @@ func (l *Lzh) sendBlock() {
 	for i = 0; i < np; i++ {
 		l.pFreq[i] = 0
 	}
+	return nil
 }
 
 /***** decoding *****/
-func (l *Lzh) readPtLen(nn, nbit, iSpecial int) {
+func (l *Lzh) readPtLen(nn, nbit, iSpecial int) error {
 	var i, c, n int
 	var mask uint32
-	n = int(l.getbits(nbit))
+	v, err := l.getbits(nbit)
+	if err != nil {
+		return err
+	}
+	n = int(v)
 	if n == 0 {
-		c = int(l.getbits(nbit))
+		v, err := l.getbits(nbit)
+		if err != nil {
+			return err
+		}
+		c = int(v)
 		for i = 0; i < nn; i++ {
 			l.ptLen[i] = 0
 		}
@@ -254,15 +370,25 @@ func (l *Lzh) readPtLen(nn, nbit, iSpecial int) {
 				}
 			}
 			if c < 7 {
-				l.fillbuf(3)
+				err := l.fillbuf(3)
+				if err != nil {
+					return err
+				}
 			} else {
-				l.fillbuf(c - 3)
+				err := l.fillbuf(c - 3)
+				if err != nil {
+					return err
+				}
 			}
 
 			l.ptLen[i] = byte(c)
 			i++
 			if i == iSpecial {
-				c = int(l.getbits(2))
+				v, err := l.getbits(2)
+				if err != nil {
+					return err
+				}
+				c = int(v)
 				c--
 				for c >= 0 {
 					c--
@@ -275,17 +401,29 @@ func (l *Lzh) readPtLen(nn, nbit, iSpecial int) {
 			l.ptLen[i] = 0
 			i++
 		}
-		l.makeTable(nn, &l.ptLen, 8, &l.ptTable)
+		err := l.makeTable(nn, &l.ptLen, 8, &l.ptTable)
+		if err != nil {
+			return err
+		}
 	}
+	return nil
 }
 
-func (l *Lzh) readCLen() {
+func (l *Lzh) readCLen() error {
 	var i, c, n int
 	var mask uint32
 
-	n = int(l.getbits(cbit))
+	v, err := l.getbits(cbit)
+	if err != nil {
+		return err
+	}
+	n = int(v)
 	if n == 0 {
-		c = int(l.getbits(cbit))
+		v, err := l.getbits(cbit)
+		if err != nil {
+			return err
+		}
+		c = int(v)
 		for i = 0; i < nc; i++ {
 			l.cLen[i] = 0
 		}
@@ -310,15 +448,26 @@ func (l *Lzh) readCLen() {
 					}
 				}
 			}
-			l.fillbuf(int(l.ptLen[c]))
+			err := l.fillbuf(int(l.ptLen[c]))
+			if err != nil {
+				return err
+			}
 			if c <= 2 {
 				if c == 0 {
 					c = 1
 				} else {
 					if c == 1 {
-						c = int(l.getbits(4)) + 3
+						v, err := l.getbits(4)
+						if err != nil {
+							return err
+						}
+						c = int(v) + 3
 					} else {
-						c = int(l.getbits(cbit)) + 20
+						v, err = l.getbits(cbit)
+						if err != nil {
+							return err
+						}
+						c = int(v) + 20
 					}
 				}
 				c--
@@ -339,17 +488,34 @@ func (l *Lzh) readCLen() {
 			l.cLen[i] = 0
 			i++
 		}
-		l.makeTable(nc, &l.cLen, 12, &l.cTable)
+		err := l.makeTable(nc, &l.cLen, 12, &l.cTable)
+		if err != nil {
+			return err
+		}
 	}
+	return nil
 }
 
-func (l *Lzh) decodeC() uint16 {
+func (l *Lzh) decodeC() (uint16, error) {
 	var j, mask uint16
 	if l.blocksize == 0 {
-		l.blocksize = l.getbits(16)
-		l.readPtLen(nt, tbit, 3)
-		l.readCLen()
-		l.readPtLen(np, pbit, -1)
+		var err error
+		l.blocksize, err = l.getbits(16)
+		if err != nil {
+			return 0, err
+		}
+		err = l.readPtLen(nt, tbit, 3)
+		if err != nil {
+			return 0, err
+		}
+		err = l.readCLen()
+		if err != nil {
+			return 0, err
+		}
+		err = l.readPtLen(np, pbit, -1)
+		if err != nil {
+			return 0, err
+		}
 	}
 	l.blocksize--
 	j = uint16(l.cTable[l.bitbuf>>(bitbufsiz-12)])
@@ -367,11 +533,10 @@ func (l *Lzh) decodeC() uint16 {
 			}
 		}
 	}
-	l.fillbuf(int(l.cLen[j]))
-	return j
+	return j, l.fillbuf(int(l.cLen[j]))
 }
 
-func (l *Lzh) decodeP() uint16 {
+func (l *Lzh) decodeP() (uint16, error) {
 	var j uint16
 	var mask uint32
 	j = uint16(l.ptTable[l.bitbuf>>(bitbufsiz-8)])
@@ -386,24 +551,34 @@ func (l *Lzh) decodeP() uint16 {
 			mask >>= 1
 		}
 	}
-	l.fillbuf(int(l.ptLen[j]))
-	if j != 0 {
-		j = (uint16(1) << (j - 1)) + l.getbits(int(j-1))
+	err := l.fillbuf(int(l.ptLen[j]))
+	if err != nil {
+		return j, err
 	}
-	return j
+	if j != 0 {
+		v, err := l.getbits(int(j - 1))
+		if err != nil {
+			return 0, err
+		}
+		j = (uint16(1) << (j - 1)) + v
+	}
+	return j, nil
 }
 
 var cpos uint
 
-func (l *Lzh) output(c, p uint) {
+func (l *Lzh) output(c, p uint) error {
 
 	l.outputMask >>= 1
 	if l.outputMask == 0 {
 		l.outputMask = uint(1) << (charBit - 1)
 		if l.outputPos >= (l.bufsiz - 3*uint(charBit)) {
-			l.sendBlock()
+			err := l.sendBlock()
+			if err != nil {
+				return err
+			}
 			if l.unpackable {
-				return
+				return nil
 			}
 			l.outputPos = 0
 		}
@@ -427,6 +602,7 @@ func (l *Lzh) output(c, p uint) {
 		}
 		l.pFreq[c]++
 	}
+	return nil
 }
 
 func (l *Lzh) printCLen() {
