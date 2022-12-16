@@ -86,7 +86,7 @@ func (l *Lzh) getbits(n int) (uint16, error) {
 	return x, l.fillbuf(n)
 }
 
-func (l *Lzh) freadCrc(dst *[]byte, dstart, sstart, length int, src *[]byte) (error, int) {
+func (l *Lzh) freadCrc(dst *[]byte, dstart, sstart, length int, src *[]byte) (int, error) {
 	var i int
 
 	if len((*src)) < sstart+length {
@@ -112,7 +112,7 @@ func (l *Lzh) freadCrc(dst *[]byte, dstart, sstart, length int, src *[]byte) (er
 	for i = len((*dst)); i < int(discsiz)*2+maxmatch+1; i++ {
 		(*dst) = append((*dst), 0)
 	}
-	return nil, length
+	return length, nil
 }
 
 func (l *Lzh) updateCrc(v byte) {

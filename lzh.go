@@ -195,13 +195,13 @@ func (l *Lzh) readHeader() error {
 	l.headersize = l.arcfile[0]
 	l.headersum = l.arcfile[1]
 	l.arcfilePtr += 2
-	err, _ := l.freadCrc(&l.header, 0, l.arcfilePtr, int(l.headersize), &l.arcfile)
+	_, err := l.freadCrc(&l.header, 0, l.arcfilePtr, int(l.headersize), &l.arcfile)
 	l.arcfilePtr += int(l.headersize)
 	if err != nil {
 		return err
 	}
 	if l.calcHeadersum() != uint(l.headersum) {
-		return errors.New("Header sum error")
+		return errors.New("header sum error")
 	}
 	l.compsize = int(l.getFromHeader(5, 4))
 	l.origsize = int(l.getFromHeader(9, 4))

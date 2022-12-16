@@ -19,7 +19,7 @@ func (l *Lzh) encode() error {
 	l.allocateMemory()
 	l.initSlide()
 	l.hufEncodeStart()
-	err, l.remainder = l.freadCrc(&l.text, int(discsiz), l.infilePtr, int(discsiz)+maxmatch, &l.infile)
+	l.remainder, err = l.freadCrc(&l.text, int(discsiz), l.infilePtr, int(discsiz)+maxmatch, &l.infile)
 	l.infilePtr += l.remainder
 	if err != nil {
 		return err
@@ -227,7 +227,7 @@ func (l *Lzh) getNextMatch() {
 
 	if l.pos == int16(discsiz)*2 {
 		l.text = append(l.text[:0], l.text[discsiz:]...)
-		err, n := l.freadCrc(&l.text, int(discsiz)+maxmatch, l.infilePtr, int(discsiz), &l.infile)
+		n, err := l.freadCrc(&l.text, int(discsiz)+maxmatch, l.infilePtr, int(discsiz), &l.infile)
 		l.infilePtr += n
 		if err != nil {
 			fmt.Fprintf(os.Stderr, "Error while reading crc : %s\n", err.Error())

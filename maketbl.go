@@ -23,7 +23,7 @@ func (l *Lzh) makeTable(nchar int, bitlen *[]byte, tablebits int, table *[]uint1
 		start[i+1] = start[i] + (count[i] << (16 - i))
 	}
 	if start[17] != 0 {
-		return errors.New("Bad table")
+		return errors.New("bad table")
 	}
 	jutbits = 16 - uint(tablebits)
 	for i = 1; i <= uint(tablebits); i++ {
